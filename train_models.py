@@ -28,6 +28,13 @@ def group_id(kind: str, chip_id: str, event_id: object) -> str:
     return str(event_id) if pd.notna(event_id) else f"unlinked_{kind}_{chip_id}"
 
 
+def best_f1_threshold(y_true: np.ndarray, probabilities: np.ndarray) -> tuple[float, float]:
+    candidates = np.linspace(.05, .95, 37)
+    scores = [f1_binary(y_true, probabilities >= threshold) for threshold in candidates]
+    index = int(np.argmax(scores))
+    return float(candidates[index]), float(scores[index])
+
+
 def collect(data_dir: Path, kind: str, per_class: int, seed: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     rng = np.random.default_rng(seed)
     meta = pd.read_csv(data_dir / kind / "meta.csv")
@@ -74,6 +81,7 @@ def main() -> None:
     args = parser.parse_args()
     args.models_dir.mkdir(parents=True, exist_ok=True)
     results = {}
+    settings: dict[str, float] = {}
     # Sampling keeps the experiment runnable on a laptop; full rasters are
     # still used during inference and metric calculation.
     for kind, max_per_class in (("af", 250), ("bs", 180)):
@@ -87,7 +95,10 @@ def main() -> None:
         else:
             eval_y, eval_pred = y[val_idx], model.predict(x[val_idx])
         if kind == "af":
-            results["af_f1_event_holdout"] = f1_binary(eval_y, eval_pred)
+            probabilities = model.predict_proba(x[val_idx])[:, 1]
+            threshold, score = best_f1_threshold(y[val_idx], probabilities)
+            settings["af_probability_threshold"] = threshold
+            results["af_f1_event_holdout"] = score
         else:
             results["bs_iou_burn_event_holdout"] = iou(eval_y > 0, eval_pred > 0, 1)
             results["bs_miou_severity_event_holdout"] = float(np.mean([iou(eval_y, eval_pred, c) for c in (1, 2, 3)]))
@@ -96,6 +107,7 @@ def main() -> None:
         dump(final, args.models_dir / f"{kind}_histgb.joblib")
     results["estimated_score"] = .35 * results["af_f1_event_holdout"] + .35 * results["bs_iou_burn_event_holdout"] + .30 * results["bs_miou_severity_event_holdout"]
     (args.models_dir / "validation_metrics.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    (args.models_dir / "settings.json").write_text(json.dumps(settings, indent=2), encoding="utf-8")
     print(json.dumps(results, indent=2))
 
 

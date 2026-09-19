@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import pandas as pd
 from joblib import load
@@ -26,12 +27,16 @@ def main() -> None:
             path = args.models_dir / f"{kind}_histgb.joblib"
             if path.exists():
                 models[kind] = load(path)
+    settings = {}
+    if args.models_dir and (args.models_dir / "settings.json").exists():
+        settings = json.loads((args.models_dir / "settings.json").read_text(encoding="utf-8"))
     masks: dict[str, object] = {}
     for chip_id in template.chip_id.unique():
         if chip_id.startswith("AF_"):
             if "af" in models:
                 x, valid = af_features(args.data_dir, chip_id)
-                result = models["af"].predict(x).reshape(256, 256).astype("uint8")
+                threshold = settings.get("af_probability_threshold", .5)
+                result = (models["af"].predict_proba(x)[:, 1] >= threshold).reshape(256, 256).astype("uint8")
                 masks[chip_id] = result * valid.reshape(256, 256)
             else:
                 masks[chip_id] = predict_af(args.data_dir, chip_id)
