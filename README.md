@@ -45,6 +45,15 @@ python scripts/validate_submission.py --submission output/submission_model.csv -
 
 Команда создаёт все 447 строк шаблона; пустые маски записываются как пустой RLE. Валидатор проверяет пары `(chip_id, class_id)`, границы RLE и отсутствие пересечений классов BS.
 
+### Docker
+
+```powershell
+docker build -t fire-monitoring .
+docker run --rm -v "${PWD}\Мониторинг DATA:/data" -v "${PWD}\output:/output" fire-monitoring --data-dir /data/test --output /output/submission.csv
+```
+
+Обучаемые веса в Docker передаются отдельным volume в `artifacts/models` и указываются через `--models-dir`.
+
 ## Сервис
 
 ```powershell
