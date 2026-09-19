@@ -1,0 +1,9 @@
+__pycache__/
+.venv/
+*.pyc
+artifacts/
+output/
+tmp/
+Мониторинг DATA/
+*.tar
+
