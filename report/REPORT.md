@@ -14,7 +14,7 @@ AF использует I4, разность I4-I5 и локальный фон 
 
 ## Обучаемый вариант
 
-Для AF в признаки входят I1-I5, I4-I5, локальные контрастные признаки, weather, DEM и land cover. Для BS используются pre/post Sentinel-2, их разности, NBR/dNBR/RdNBR, pre/post Sentinel-1 и разности, SCL, DEM/slope/landcover. `HistGradientBoostingClassifier` обучается с фиксированным seed 42; валидация группируется по `fire_event_id`.
+Для AF в признаки входят I1-I5, I4-I5, локальные контрастные признаки, weather, DEM и land cover. Для BS используются pre/post Sentinel-2, их разности, NBR/dNBR/RdNBR, pre/post Sentinel-1 и разности, SCL, DEM/slope/landcover. `HistGradientBoostingClassifier` обучается с фиксированным seed 42; AF валидируется holdout по году съёмки, BS — по `fire_event_id`.
 
 На отложенных пожарах в сэмплированной валидации получено: F1 AF 0,9985, IoU гари 0,9490, mIoU тяжести 0,8112, оценочный Score 0,9250. Это оптимистичная оценка, так как она измерена на сэмплированных пикселях, поэтому до финала необходимы метрики на полных чипах и отдельные пространственно-временные holdout.
 

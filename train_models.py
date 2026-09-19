@@ -24,8 +24,13 @@ def read_target(path: Path) -> np.ndarray:
         return src.read(1).reshape(-1)
 
 
-def group_id(kind: str, chip_id: str, event_id: object) -> str:
-    return str(event_id) if pd.notna(event_id) else f"unlinked_{kind}_{chip_id}"
+def group_id(kind: str, row) -> str:
+    """Keep AF acquisition years separate; BS has supplied event identifiers."""
+    if kind == "af" and pd.notna(row.acq_datetime):
+        return f"af_year_{str(row.acq_datetime)[:4]}"
+    if pd.notna(row.fire_event_id):
+        return str(row.fire_event_id)
+    return f"unlinked_{kind}_{row.chip_id}"
 
 
 def best_f1_threshold(y_true: np.ndarray, probabilities: np.ndarray) -> tuple[float, float]:
@@ -51,7 +56,7 @@ def collect(data_dir: Path, kind: str, per_class: int, seed: int) -> tuple[np.nd
         if not picks:
             continue
         indices = np.concatenate(picks)
-        group = group_id(kind, row.chip_id, row.fire_event_id)
+        group = group_id(kind, row)
         xs.append(x[indices]); ys.append(y[indices]); groups.extend([group] * len(indices))
     return np.concatenate(xs), np.concatenate(ys), np.asarray(groups)
 
@@ -62,7 +67,7 @@ def full_chip_validation(data_dir: Path, kind: str, model, heldout_groups: set) 
     feature_fn = af_features if kind == "af" else bs_features
     targets, predictions = [], []
     for row in meta.itertuples(index=False):
-        if group_id(kind, row.chip_id, row.fire_event_id) not in heldout_groups:
+        if group_id(kind, row) not in heldout_groups:
             continue
         x, valid = feature_fn(data_dir, row.chip_id)
         y = read_target(data_dir / kind / "masks" / f"{row.chip_id}_MASK.tif")
