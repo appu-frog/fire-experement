@@ -4,6 +4,6 @@ __pycache__/
 artifacts/
 output/
 tmp/
+service/catalogue.geojson
 Мониторинг DATA/
 *.tar
-

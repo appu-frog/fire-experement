@@ -98,8 +98,9 @@ def main() -> None:
     rows.extend(markdown_table(cloud_summary, ["cloud_bin", "chips", "median_burn_ha", "median_valid"]))
     rows.extend(["", "### BS: доля гари по WorldCover", ""])
     pivot = landcover.pivot(index="landcover", columns="severity", values="pixels").fillna(0)
+    severity_columns = [column for column in (0, 1, 2, 3) if column in pivot.columns]
+    pivot["all_pixels"] = pivot[severity_columns].sum(axis=1)
     pivot["burn_pixels"] = pivot.get(1, 0) + pivot.get(2, 0) + pivot.get(3, 0)
-    pivot["all_pixels"] = pivot.sum(axis=1)
     pivot["burn_share"] = (pivot["burn_pixels"] / pivot["all_pixels"]).map(lambda x: f"{x:.2%}")
     summary = pivot.reset_index().sort_values("burn_pixels", ascending=False).head(10)
     rows.extend(markdown_table(summary, ["landcover", "all_pixels", "burn_pixels", "burn_share"]))

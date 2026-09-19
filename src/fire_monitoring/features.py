@@ -11,10 +11,22 @@ def af_features(data_dir: Path, chip_id: str) -> tuple[np.ndarray, np.ndarray]:
     paths = chip_paths(data_dir, chip_id, "af")
     viirs, aux = read_raster(paths["main"]), read_raster(paths["aux"])
     i4, i5 = viirs[3], viirs[4]
+    reflective_missing = ~np.isfinite(viirs[:3])
+    viirs_filled = np.nan_to_num(viirs[:5], nan=0.0, posinf=0.0, neginf=0.0)
+    aux_filled = np.nan_to_num(aux, nan=0.0, posinf=0.0, neginf=0.0)
     local_i4 = uniform_filter(np.nan_to_num(i4, nan=0), size=9, mode="nearest")
     local_diff = uniform_filter(np.nan_to_num(i4 - i5, nan=0), size=9, mode="nearest")
-    stack = np.concatenate([viirs[:5], aux, (i4 - i5)[None], (i4 - local_i4)[None], (i4 - i5 - local_diff)[None]])
-    valid = (viirs[7] > 0) & np.isfinite(stack).all(axis=0)
+    stack = np.concatenate([
+        viirs_filled,
+        aux_filled,
+        np.nan_to_num((i4 - i5)[None], nan=0.0),
+        np.nan_to_num((i4 - local_i4)[None], nan=0.0),
+        np.nan_to_num((i4 - i5 - local_diff)[None], nan=0.0),
+        reflective_missing.astype(np.float32),
+    ])
+    # Night-time reflective bands are expected to be NaN. Thermal channels and
+    # the published validity mask determine whether an AF pixel can be scored.
+    valid = (viirs[7] > 0) & np.isfinite(i4) & np.isfinite(i5)
     return stack.reshape(stack.shape[0], -1).T.astype(np.float32), valid.reshape(-1)
 
 

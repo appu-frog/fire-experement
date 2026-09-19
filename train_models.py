@@ -73,7 +73,10 @@ def full_chip_validation(data_dir: Path, kind: str, model, heldout_groups: set) 
         y = read_target(data_dir / kind / "masks" / f"{row.chip_id}_MASK.tif")
         valid &= y != 255
         targets.append(y[valid])
-        predictions.append(model.predict(x[valid]))
+        if kind == "af":
+            predictions.append(model.predict_proba(x[valid])[:, 1])
+        else:
+            predictions.append(model.predict(x[valid]))
     return np.concatenate(targets), np.concatenate(predictions)
 
 
@@ -95,22 +98,26 @@ def main() -> None:
         model = HistGradientBoostingClassifier(max_iter=80, learning_rate=.10, max_leaf_nodes=24, l2_regularization=1.0, random_state=args.seed)
         model.fit(x[train_idx], y[train_idx])
         heldout_groups = set(groups[val_idx])
-        if args.full_chip_validation:
-            eval_y, eval_pred = full_chip_validation(args.data_dir, kind, model, heldout_groups)
-        else:
-            eval_y, eval_pred = y[val_idx], model.predict(x[val_idx])
         if kind == "af":
-            probabilities = model.predict_proba(x[val_idx])[:, 1]
-            threshold, score = best_f1_threshold(y[val_idx], probabilities)
+            if args.full_chip_validation:
+                eval_y, probabilities = full_chip_validation(args.data_dir, kind, model, heldout_groups)
+            else:
+                eval_y, probabilities = y[val_idx], model.predict_proba(x[val_idx])[:, 1]
+            threshold, score = best_f1_threshold(eval_y, probabilities)
             settings["af_probability_threshold"] = threshold
             results["af_f1_event_holdout"] = score
         else:
+            if args.full_chip_validation:
+                eval_y, eval_pred = full_chip_validation(args.data_dir, kind, model, heldout_groups)
+            else:
+                eval_y, eval_pred = y[val_idx], model.predict(x[val_idx])
             results["bs_iou_burn_event_holdout"] = iou(eval_y > 0, eval_pred > 0, 1)
             results["bs_miou_severity_event_holdout"] = float(np.mean([iou(eval_y, eval_pred, c) for c in (1, 2, 3)]))
         final = HistGradientBoostingClassifier(max_iter=80, learning_rate=.10, max_leaf_nodes=24, l2_regularization=1.0, random_state=args.seed)
         final.fit(x, y)
         dump(final, args.models_dir / f"{kind}_histgb.joblib")
     results["estimated_score"] = .35 * results["af_f1_event_holdout"] + .35 * results["bs_iou_burn_event_holdout"] + .30 * results["bs_miou_severity_event_holdout"]
+    results["validation_scope"] = "full held-out chips" if args.full_chip_validation else "sampled held-out pixels"
     (args.models_dir / "validation_metrics.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
     (args.models_dir / "settings.json").write_text(json.dumps(settings, indent=2), encoding="utf-8")
     print(json.dumps(results, indent=2))

@@ -26,7 +26,7 @@ python scripts/eda.py --data-dir "Мониторинг DATA/train" --output repo
 python train_models.py --data-dir "Мониторинг DATA/train" --models-dir artifacts/models
 ```
 
-`train_models.py` группирует обучающую и проверочную части по `fire_event_id`, исключает пиксели no-data и не передаёт модели target-derived поля из `meta.csv`. Метрики в `artifacts/models/validation_metrics.json` являются оценкой на сэмплированных пикселях отложенных пожаров, поэтому для окончательного выбора модели нужен отдельный тест на полных чипах/регионах.
+`train_models.py` разделяет AF по годам съёмки, BS — по `fire_event_id`, исключает no-data и не передаёт модели target-derived поля из `meta.csv`. Для строгой оценки на всех пикселях отложенных чипов используйте `--full-chip-validation`. Последний строгий прогон: F1 AF 0,8735, IoU гари 0,5155, mIoU степени 0,5252, Score 0,6437.
 
 ## Инференс и проверка
 
@@ -57,11 +57,12 @@ docker run --rm -v "${PWD}\Мониторинг DATA:/data" -v "${PWD}\output:/o
 ## Сервис
 
 ```powershell
+python scripts/build_demo_catalogue.py --data-dir "Мониторинг DATA/train" --output service/catalogue.geojson
 uvicorn service.app:app --host 0.0.0.0 --port 8000
 ```
 
-Для демонстрации укажите `FIRE_CATALOGUE=service/catalogue.geojson`. Это GeoJSON FeatureCollection, где свойства объекта содержат `kind` (`fire_point` или `burn_polygon`), `observed_at`, `severity_class` и `area_ha`. API: `POST /api/v1/query`, `/api/v1/fire-points`, `/api/v1/burn-polygons`, `/api/v1/report`; интерактивная схема доступна в `/docs`.
+Генератор создаёт демонстрационный GeoJSON только из разрешённой train-части. Карта доступна на `/`, интерактивная схема — на `/docs`. API: `POST /api/v1/query`, `/api/v1/fire-points`, `/api/v1/burn-polygons`, `/api/v1/report`.
 
 ## Ограничения текущей версии
 
-Пороговый baseline работает менее чем за 30 секунд на этой машине. Модельный вариант точнее на event-holdout сэмплах, но CPU-инференс занимает около 93 секунд; перед финальной сдачей его следует ускорить (ONNX/уменьшение числа итераций) и выбрать вариант по публичной метрике.
+Пороговый baseline работает менее чем за 30 секунд на этой машине. Модельный CPU-инференс занимает около 93 секунд; перед финальной сдачей его следует ускорить и выбрать вариант по публичной метрике.
